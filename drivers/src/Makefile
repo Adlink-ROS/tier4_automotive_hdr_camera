@@ -109,7 +109,12 @@ else ifeq ($(L4T_RELEASE_MAIN), R34)
     endif
 else ifeq ($(L4T_RELEASE_MAIN), R35)
     ifeq ($(L4T_RELEASE_MAJOR), 1)
-        ifeq ($(MODEL),$(Xavier_word))
+        ifeq ($(MODEL),$(ROScube_word))
+            KERNELRELEASE            := 5.10.104-rqx58g
+            TARGET_ISX021_DTS        := tier4-isx021-gmsl-device-tree-overlay-rqx58g-r35_x
+            TARGET_ISX021_IMX490_DTS := tier4-isx021-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
+            TARGET_IMX490_DTS        := tier4-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
+        else ifeq ($(MODEL),$(Xavier_word))
             KERNELRELEASE            := 5.1.104-tegra
             TARGET_ISX021_DTS        := tier4-isx021-gmsl-device-tree-overlay-xavier-r3411_r351
             TARGET_ISX021_IMX490_DTS := tier4-isx021-imx490-gmsl-device-tree-overlay-xavier-r3411_r351
