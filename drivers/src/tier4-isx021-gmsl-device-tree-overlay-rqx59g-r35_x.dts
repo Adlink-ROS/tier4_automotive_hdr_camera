@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define CSI_PORT_LANES	2
+#define CSI_PORT_LANES	4
 #define STRING(s)	_STRING(s)
 #define _STRING(s)	#s
 
@@ -450,7 +450,7 @@
                         reg = <0>;
                         isx021_out3: endpoint {
                             vc-id = <1>;
-                            port-index = <0>;
+                            port-index = <2>;
                             bus-width = <CSI_PORT_LANES>;
                             remote-endpoint = <&csi_in3>;
                         };
@@ -567,7 +567,7 @@
                         reg = <0>;
                         isx021_out2: endpoint {
                             vc-id = <0>;
-                            port-index = <0>;
+                            port-index = <2>;
                             bus-width = <CSI_PORT_LANES>;
                             remote-endpoint = <&csi_in2>;
                         };
@@ -664,7 +664,7 @@
                 mode0 {/*mode ISX021_MODE_1920X1280_CROP_30FPS*/
                     mclk_khz = "24000";
                     num_lanes = STRING(CSI_PORT_LANES);
-                    tegra_sinterface = "serial_c";
+                    tegra_sinterface = "serial_e";
                     vc_id = "1";
                     discontinuous_clk = "no";
                     dpcm_enable = "false";
@@ -722,7 +722,7 @@
                         reg = <0>;
                         isx021_out5: endpoint {
                             vc-id = <1>;
-                            port-index = <0>;
+                            port-index = <4>;
                             bus-width = <CSI_PORT_LANES>;
                             remote-endpoint = <&csi_in5>;
                         };
@@ -839,7 +839,7 @@
                         reg = <0>;
                         isx021_out4: endpoint {
                             vc-id = <0>;
-                            port-index = <0>;
+                            port-index = <4>;
                             bus-width = <CSI_PORT_LANES>;
                             remote-endpoint = <&csi_in4>;
                         };
@@ -994,7 +994,7 @@
                         reg = <0>;
                         isx021_out7: endpoint {
                             vc-id = <1>;
-                            port-index = <0>;
+                            port-index = <6>;
                             bus-width = <CSI_PORT_LANES>;
                             remote-endpoint = <&csi_in7>;
                         };
@@ -1111,7 +1111,7 @@
                         reg = <0>;
                         isx021_out6: endpoint {
                             vc-id = <0>;
-                            port-index = <0>;
+                            port-index = <6>;
                             bus-width = <CSI_PORT_LANES>;
                             remote-endpoint = <&csi_in6>;
                         };
