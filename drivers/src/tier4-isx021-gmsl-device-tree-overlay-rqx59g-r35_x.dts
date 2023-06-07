@@ -1,0 +1,1508 @@
+/dts-v1/;
+/plugin/;
+
+ /*
+ * Copyright (c) 2017-2022, NVIDIA CORPORATION.  All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#define CSI_PORT_LANES	2
+#define STRING(s)	_STRING(s)
+#define _STRING(s)	#s
+
+#define ENABLE_DSER0 1
+#define ENABLE_DSER1 1
+#define ENABLE_DSER2 1
+#define ENABLE_DSER3 1
+
+/ {
+    overlay-name = "TIERIV ISX021 GMSL2 Camera Device Tree Overlay";
+    compatible = "nvidia,p3737-0000+p3701-0000", "nvidia,tegra234", "nvidia,tegra23x";
+    jetson-header-name = "Jetson AGX CSI Connector";
+
+    fragment@0 {
+      target = <&gen8_i2c>; // gen8_i2c = i2c@c250000 = i2c-7
+      __overlay__ {
+        status = "okay";
+        tca9546@70 {
+          compatible = "nxp,pca9546";
+          #address-cells = <1>;
+          #size-cells = <0>;
+          reg = <0x70>;
+          skip_mux_detect = "yes";
+          force_bus_start = <0x1e>;
+          vif-supply = <&p3737_vdd_1v8_sys>;
+          vcc-supply = <&p3737_vdd_1v8_sys>;
+          vcc-pullup-supply = <&battery_reg>;
+
+#if ENABLE_DSER0
+          gmsl_mux_i2c_0: i2c@0 {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            reg = <0>;
+            i2c-mux,deselect-on-exit;
+
+            gmsl_dser_0: max9296@48 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9296";
+                reg = <0x48>;
+                csi-mode = "2x4";
+                max-src = <2>;
+            };
+            ser_prim_0: max9295_prim@62 { 
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x62>;
+                is-prim-ser;
+            };
+            ser_a: max9295_a@42 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x42>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_0>;
+                prim-parent = <&ser_prim_0>;
+            };
+            ser_b: max9295_b@60 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x60>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_0>;
+                prim-parent = <&ser_prim_0>;
+            };
+            
+            isx021_b@1c {
+                status = "okay";
+                def-addr = <0x1a>;
+                reg = <0x1c>;
+                reg_mux = <0>;
+                nvidia,gmsl-ser-device = <&ser_b>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_0>;
+                sensor_model = "isx021";
+                compatible = "nvidia,tier4_isx021";
+                
+                /* Define any required hw resources needed by driver */
+                /* ie. clocks, io pins, power sources */
+                clock-names = "extperiph1", "pllp_grtba";
+                mclk = "extperiph1";
+                nvidia,fpga-device  = <&t4_fpga>;
+
+                /* Physical dimensions of sensor */
+                physical_w = "15.0";
+                physical_h = "12.5";
+
+                fsync-mode = "false";
+
+                distortion-correction = "false";
+
+                auto-exposure = "true";
+
+                /* Defines number of frames to be dropped by driver internally after applying */
+                /* sensor crop settings. Some sensors send corrupt frames after applying */
+                /* crop co-ordinates */
+                post_crop_frame_drop = "0";
+
+                /* Convert Gain to unit of dB (decibel) befor passing to kernel driver */
+                use_decibel_gain = "true";
+
+                /* enable CID_SENSOR_MODE_ID for sensor modes selection */
+                use_sensor_mode_id = "true";
+
+                mode0 {/*mode ISX021_MODE_1920X1280_CROP_30FPS*/
+                    mclk_khz = "24000";
+                    num_lanes = STRING(CSI_PORT_LANES);
+                    tegra_sinterface = "serial_a";
+                    vc_id = "1";
+                    discontinuous_clk = "no";
+                    dpcm_enable = "false";
+                    cil_settletime = "0";
+                    dynamic_pixel_bit_depth = "16";
+                    csi_pixel_bit_depth = "16";
+                    mode_type = "yuv";
+                    pixel_phase = "uyvy";
+
+                    active_w = "1920";
+                    active_h = "1280";
+                    readout_orientation = "0";
+                    line_length = "2250";
+                    inherent_gain = "1";
+
+#if (CSI_PORT_LANES==2)
+                    pix_clk_hz = "94500000";
+#else
+                    pix_clk_hz = "189000000";
+#endif
+                    // MIPI CSI clock needs to be 1.5GHz to support deskew
+                    // MIPI CSI output data rate = 1.5Gbps = (sensor or deserializer pixel clock in hertz) * (bits per pixel) / (number of CSI lanes)
+                    // 1500000000 = serdes_pix_clk_hz * csi_pixel_bit_depth / num_lanes
+                    // => serdes_pix_clk_hz = 1500000000 * num_lanes / csi_pixel_bit_depth
+#if (CSI_PORT_LANES==2)
+                    serdes_pix_clk_hz = "187500000";
+#else
+                    serdes_pix_clk_hz = "375000000";
+#endif
+
+                    gain_factor = "10";
+                    min_gain_val = "0";                             /* dB */
+                    max_gain_val = "300";                           /* dB */
+                    step_gain_val = "3";                            /* 0.3 */
+                    default_gain = "0";
+                    min_hdr_ratio = "1";
+                    max_hdr_ratio = "1";
+                    framerate_factor = "1000000";
+                    min_framerate = "30000000";
+                    max_framerate = "30000000";
+                    step_framerate = "1";
+                    default_framerate = "30000000";
+                    exposure_factor = "1000000";
+                    min_exp_time = "24";                            /* us 1 line */
+                    max_exp_time = "33333";
+                    step_exp_time = "1";
+                    default_exp_time = "33333";                     /* us */
+                    embedded_metadata_height = "0";
+                };
+
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+                    port@0 {
+                        reg = <0>;
+                        isx021_out1: endpoint {
+                            vc-id = <1>;
+                            port-index = <0>;
+                            bus-width = <CSI_PORT_LANES>;
+                            remote-endpoint = <&csi_in1>;
+                        };
+                    };
+                };
+
+                gmsl-link {
+                    src-csi-port = "b";
+                    dst-csi-port = "a";
+                    serdes-csi-link = "b";
+                    csi-mode = "1x4";
+                    st-vc = <0>;
+                    vc-id = <1>;
+                    num-lanes = <CSI_PORT_LANES>;
+                    streams = "ued-u1","yuv8";
+                };
+            };
+            
+            isx021_a@1b {
+                status = "okay";
+                def-addr = <0x1a>;
+                reg = <0x1b>;
+                reg_mux = <0>;
+                nvidia,gmsl-ser-device = <&ser_a>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_0>;
+                sensor_model = "isx021";
+                compatible = "nvidia,tier4_isx021";
+                
+                /* Define any required hw resources needed by driver */
+                /* ie. clocks, io pins, power sources */
+                clock-names = "extperiph1", "pllp_grtba";
+                mclk = "extperiph1";
+                nvidia,fpga-device  = <&t4_fpga>;
+
+                /* Physical dimensions of sensor */
+                physical_w = "15.0";
+                physical_h = "12.5";
+
+                fsync-mode = "false";
+
+                distortion-correction = "false";
+
+                auto-exposure = "true";
+
+                /* Defines number of frames to be dropped by driver internally after applying */
+                /* sensor crop settings. Some sensors send corrupt frames after applying */
+                /* crop co-ordinates */
+                post_crop_frame_drop = "0";
+
+                /* Convert Gain to unit of dB (decibel) befor passing to kernel driver */
+                use_decibel_gain = "true";
+
+                /* enable CID_SENSOR_MODE_ID for sensor modes selection */
+                use_sensor_mode_id = "true";
+
+                mode0 {/*mode ISX021_MODE_1920X1280_CROP_30FPS*/
+                    mclk_khz = "24000";
+                    num_lanes = STRING(CSI_PORT_LANES);
+                    tegra_sinterface = "serial_a";
+                    vc_id = "0";
+                    discontinuous_clk = "no";
+                    dpcm_enable = "false";
+                    cil_settletime = "0";
+                    dynamic_pixel_bit_depth = "16";
+                    csi_pixel_bit_depth = "16";
+                    mode_type = "yuv";
+                    pixel_phase = "uyvy";
+
+                    active_w = "1920";
+                    active_h = "1280";
+                    readout_orientation = "0";
+                    line_length = "2250";
+                    inherent_gain = "1";
+
+#if (CSI_PORT_LANES==2)
+                    pix_clk_hz = "94500000";
+#else
+                    pix_clk_hz = "189000000";
+#endif
+                    // MIPI CSI clock needs to be 1.5GHz to support deskew
+                    // MIPI CSI output data rate = 1.5Gbps = (sensor or deserializer pixel clock in hertz) * (bits per pixel) / (number of CSI lanes)
+                    // 1500000000 = serdes_pix_clk_hz * csi_pixel_bit_depth / num_lanes
+                    // => serdes_pix_clk_hz = 1500000000 * num_lanes / csi_pixel_bit_depth
+#if (CSI_PORT_LANES==2)
+                    serdes_pix_clk_hz = "187500000";
+#else
+                    serdes_pix_clk_hz = "375000000";
+#endif
+
+                    gain_factor = "10";
+                    min_gain_val = "0";                             /* dB */
+                    max_gain_val = "300";                           /* dB */
+                    step_gain_val = "3";                            /* 0.3 */
+                    default_gain = "0";
+                    min_hdr_ratio = "1";
+                    max_hdr_ratio = "1";
+                    framerate_factor = "1000000";
+                    min_framerate = "30000000";
+                    max_framerate = "30000000";
+                    step_framerate = "1";
+                    default_framerate = "30000000";
+                    exposure_factor = "1000000";
+                    min_exp_time = "24";                            /* us 1 line */
+                    max_exp_time = "33333";
+                    step_exp_time = "1";
+                    default_exp_time = "33333";                     /* us */
+                    embedded_metadata_height = "0";
+                };
+
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+                    port@0 {
+                        reg = <0>;
+                        isx021_out0: endpoint {
+                            vc-id = <0>;
+                            port-index = <0>;
+                            bus-width = <CSI_PORT_LANES>;
+                            remote-endpoint = <&csi_in0>;
+                        };
+                    };
+                };
+
+                gmsl-link {
+                    src-csi-port = "b";
+                    dst-csi-port = "a";
+                    serdes-csi-link = "a";
+                    csi-mode = "1x4";
+                    st-vc = <0>;
+                    vc-id = <0>;
+                    num-lanes = <CSI_PORT_LANES>;
+                    streams = "ued-u1","yuv8";
+                };
+            }; // end isx021_a@1b
+          }; // gmsl_mux_i2c_0
+#endif
+
+#if ENABLE_DSER1
+          gmsl_mux_i2c_1: i2c@1 {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            reg = <1>;
+            i2c-mux,deselect-on-exit;
+
+            gmsl_dser_1: max9296@48 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9296";
+                reg = <0x48>;
+                csi-mode = "2x4";
+                max-src = <2>;
+            };
+            ser_prim_1: max9295_prim@62 { 
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x62>;
+                is-prim-ser;
+            };
+            ser_c: max9295_a@42 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x42>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_1>;
+                prim-parent = <&ser_prim_1>;
+            };
+            ser_d: max9295_b@60 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x60>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_1>;
+                prim-parent = <&ser_prim_1>;
+            };
+            
+            isx021_d@1c {
+                status = "okay";
+                def-addr = <0x1a>;
+                reg = <0x1c>;
+                reg_mux = <1>;
+                nvidia,gmsl-ser-device = <&ser_d>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_1>;
+                sensor_model = "isx021";
+                compatible = "nvidia,tier4_isx021";
+                
+                /* Define any required hw resources needed by driver */
+                /* ie. clocks, io pins, power sources */
+                clock-names = "extperiph1", "pllp_grtba";
+                mclk = "extperiph1";
+                nvidia,fpga-device  = <&t4_fpga>;
+
+                /* Physical dimensions of sensor */
+                physical_w = "15.0";
+                physical_h = "12.5";
+
+                fsync-mode = "false";
+
+                distortion-correction = "false";
+
+                auto-exposure = "true";
+
+                /* Defines number of frames to be dropped by driver internally after applying */
+                /* sensor crop settings. Some sensors send corrupt frames after applying */
+                /* crop co-ordinates */
+                post_crop_frame_drop = "0";
+
+                /* Convert Gain to unit of dB (decibel) befor passing to kernel driver */
+                use_decibel_gain = "true";
+
+                /* enable CID_SENSOR_MODE_ID for sensor modes selection */
+                use_sensor_mode_id = "true";
+
+                mode0 {/*mode ISX021_MODE_1920X1280_CROP_30FPS*/
+                    mclk_khz = "24000";
+                    num_lanes = STRING(CSI_PORT_LANES);
+                    tegra_sinterface = "serial_c";
+                    vc_id = "1";
+                    discontinuous_clk = "no";
+                    dpcm_enable = "false";
+                    cil_settletime = "0";
+                    dynamic_pixel_bit_depth = "16";
+                    csi_pixel_bit_depth = "16";
+                    mode_type = "yuv";
+                    pixel_phase = "uyvy";
+
+                    active_w = "1920";
+                    active_h = "1280";
+                    readout_orientation = "0";
+                    line_length = "2250";
+                    inherent_gain = "1";
+
+#if (CSI_PORT_LANES==2)
+                    pix_clk_hz = "94500000";
+#else
+                    pix_clk_hz = "189000000";
+#endif
+                    // MIPI CSI clock needs to be 1.5GHz to support deskew
+                    // MIPI CSI output data rate = 1.5Gbps = (sensor or deserializer pixel clock in hertz) * (bits per pixel) / (number of CSI lanes)
+                    // 1500000000 = serdes_pix_clk_hz * csi_pixel_bit_depth / num_lanes
+                    // => serdes_pix_clk_hz = 1500000000 * num_lanes / csi_pixel_bit_depth
+#if (CSI_PORT_LANES==2)
+                    serdes_pix_clk_hz = "187500000";
+#else
+                    serdes_pix_clk_hz = "375000000";
+#endif
+
+                    gain_factor = "10";
+                    min_gain_val = "0";                             /* dB */
+                    max_gain_val = "300";                           /* dB */
+                    step_gain_val = "3";                            /* 0.3 */
+                    default_gain = "0";
+                    min_hdr_ratio = "1";
+                    max_hdr_ratio = "1";
+                    framerate_factor = "1000000";
+                    min_framerate = "30000000";
+                    max_framerate = "30000000";
+                    step_framerate = "1";
+                    default_framerate = "30000000";
+                    exposure_factor = "1000000";
+                    min_exp_time = "24";                            /* us 1 line */
+                    max_exp_time = "33333";
+                    step_exp_time = "1";
+                    default_exp_time = "33333";                     /* us */
+                    embedded_metadata_height = "0";
+                };
+
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+                    port@0 {
+                        reg = <0>;
+                        isx021_out3: endpoint {
+                            vc-id = <1>;
+                            port-index = <0>;
+                            bus-width = <CSI_PORT_LANES>;
+                            remote-endpoint = <&csi_in3>;
+                        };
+                    };
+                };
+
+                gmsl-link {
+                    src-csi-port = "b";
+                    dst-csi-port = "a";
+                    serdes-csi-link = "b";
+                    csi-mode = "1x4";
+                    st-vc = <0>;
+                    vc-id = <1>;
+                    num-lanes = <CSI_PORT_LANES>;
+                    streams = "ued-u1","yuv8";
+                };
+            };
+            
+            isx021_c@1b {
+                status = "okay";
+                def-addr = <0x1a>;
+                reg = <0x1b>;
+                reg_mux = <1>;
+                nvidia,gmsl-ser-device = <&ser_c>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_1>;
+                sensor_model = "isx021";
+                compatible = "nvidia,tier4_isx021";
+                
+                /* Define any required hw resources needed by driver */
+                /* ie. clocks, io pins, power sources */
+                clock-names = "extperiph1", "pllp_grtba";
+                mclk = "extperiph1";
+                nvidia,fpga-device  = <&t4_fpga>;
+
+                /* Physical dimensions of sensor */
+                physical_w = "15.0";
+                physical_h = "12.5";
+
+                fsync-mode = "false";
+
+                distortion-correction = "false";
+
+                auto-exposure = "true";
+
+                /* Defines number of frames to be dropped by driver internally after applying */
+                /* sensor crop settings. Some sensors send corrupt frames after applying */
+                /* crop co-ordinates */
+                post_crop_frame_drop = "0";
+
+                /* Convert Gain to unit of dB (decibel) befor passing to kernel driver */
+                use_decibel_gain = "true";
+
+                /* enable CID_SENSOR_MODE_ID for sensor modes selection */
+                use_sensor_mode_id = "true";
+
+                mode0 {/*mode ISX021_MODE_1920X1280_CROP_30FPS*/
+                    mclk_khz = "24000";
+                    num_lanes = STRING(CSI_PORT_LANES);
+                    tegra_sinterface = "serial_c";
+                    vc_id = "0";
+                    discontinuous_clk = "no";
+                    dpcm_enable = "false";
+                    cil_settletime = "0";
+                    dynamic_pixel_bit_depth = "16";
+                    csi_pixel_bit_depth = "16";
+                    mode_type = "yuv";
+                    pixel_phase = "uyvy";
+
+                    active_w = "1920";
+                    active_h = "1280";
+                    readout_orientation = "0";
+                    line_length = "2250";
+                    inherent_gain = "1";
+
+#if (CSI_PORT_LANES==2)
+                    pix_clk_hz = "94500000";
+#else
+                    pix_clk_hz = "189000000";
+#endif
+                    // MIPI CSI clock needs to be 1.5GHz to support deskew
+                    // MIPI CSI output data rate = 1.5Gbps = (sensor or deserializer pixel clock in hertz) * (bits per pixel) / (number of CSI lanes)
+                    // 1500000000 = serdes_pix_clk_hz * csi_pixel_bit_depth / num_lanes
+                    // => serdes_pix_clk_hz = 1500000000 * num_lanes / csi_pixel_bit_depth
+#if (CSI_PORT_LANES==2)
+                    serdes_pix_clk_hz = "187500000";
+#else
+                    serdes_pix_clk_hz = "375000000";
+#endif
+
+                    gain_factor = "10";
+                    min_gain_val = "0";                             /* dB */
+                    max_gain_val = "300";                           /* dB */
+                    step_gain_val = "3";                            /* 0.3 */
+                    default_gain = "0";
+                    min_hdr_ratio = "1";
+                    max_hdr_ratio = "1";
+                    framerate_factor = "1000000";
+                    min_framerate = "30000000";
+                    max_framerate = "30000000";
+                    step_framerate = "1";
+                    default_framerate = "30000000";
+                    exposure_factor = "1000000";
+                    min_exp_time = "24";                            /* us 1 line */
+                    max_exp_time = "33333";
+                    step_exp_time = "1";
+                    default_exp_time = "33333";                     /* us */
+                    embedded_metadata_height = "0";
+                };
+
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+                    port@0 {
+                        reg = <0>;
+                        isx021_out2: endpoint {
+                            vc-id = <0>;
+                            port-index = <0>;
+                            bus-width = <CSI_PORT_LANES>;
+                            remote-endpoint = <&csi_in2>;
+                        };
+                    };
+                };
+
+                gmsl-link {
+                    src-csi-port = "b";
+                    dst-csi-port = "a";
+                    serdes-csi-link = "a";
+                    csi-mode = "1x4";
+                    st-vc = <0>;
+                    vc-id = <0>;
+                    num-lanes = <CSI_PORT_LANES>;
+                    streams = "ued-u1","yuv8";
+                };
+            }; // end isx021_c@1b
+          }; // gmsl_mux_i2c_1
+#endif // endif
+
+
+#if ENABLE_DSER2
+          gmsl_mux_i2c_2: i2c@2 {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            reg = <2>;
+            i2c-mux,deselect-on-exit;
+
+            gmsl_dser_2: max9296@48 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9296";
+                reg = <0x48>;
+                csi-mode = "2x4";
+                max-src = <2>;
+            };
+            ser_prim_2: max9295_prim@62 { 
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x62>;
+                is-prim-ser;
+            };
+            ser_e: max9295_a@42 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x42>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_2>;
+                prim-parent = <&ser_prim_2>;
+            };
+            ser_f: max9295_b@60 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x60>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_2>;
+                prim-parent = <&ser_prim_2>;
+            };
+            
+            isx021_f@1c {
+                status = "okay";
+                def-addr = <0x1a>;
+                reg = <0x1c>;
+                reg_mux = <2>;
+                nvidia,gmsl-ser-device = <&ser_f>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_2>;
+                sensor_model = "isx021";
+                compatible = "nvidia,tier4_isx021";
+                
+                /* Define any required hw resources needed by driver */
+                /* ie. clocks, io pins, power sources */
+                clock-names = "extperiph1", "pllp_grtba";
+                mclk = "extperiph1";
+                nvidia,fpga-device  = <&t4_fpga>;
+
+                /* Physical dimensions of sensor */
+                physical_w = "15.0";
+                physical_h = "12.5";
+
+                fsync-mode = "false";
+
+                distortion-correction = "false";
+
+                auto-exposure = "true";
+
+                /* Defines number of frames to be dropped by driver internally after applying */
+                /* sensor crop settings. Some sensors send corrupt frames after applying */
+                /* crop co-ordinates */
+                post_crop_frame_drop = "0";
+
+                /* Convert Gain to unit of dB (decibel) befor passing to kernel driver */
+                use_decibel_gain = "true";
+
+                /* enable CID_SENSOR_MODE_ID for sensor modes selection */
+                use_sensor_mode_id = "true";
+
+                mode0 {/*mode ISX021_MODE_1920X1280_CROP_30FPS*/
+                    mclk_khz = "24000";
+                    num_lanes = STRING(CSI_PORT_LANES);
+                    tegra_sinterface = "serial_c";
+                    vc_id = "1";
+                    discontinuous_clk = "no";
+                    dpcm_enable = "false";
+                    cil_settletime = "0";
+                    dynamic_pixel_bit_depth = "16";
+                    csi_pixel_bit_depth = "16";
+                    mode_type = "yuv";
+                    pixel_phase = "uyvy";
+
+                    active_w = "1920";
+                    active_h = "1280";
+                    readout_orientation = "0";
+                    line_length = "2250";
+                    inherent_gain = "1";
+
+#if (CSI_PORT_LANES==2)
+                    pix_clk_hz = "94500000";
+#else
+                    pix_clk_hz = "189000000";
+#endif
+                    // MIPI CSI clock needs to be 1.5GHz to support deskew
+                    // MIPI CSI output data rate = 1.5Gbps = (sensor or deserializer pixel clock in hertz) * (bits per pixel) / (number of CSI lanes)
+                    // 1500000000 = serdes_pix_clk_hz * csi_pixel_bit_depth / num_lanes
+                    // => serdes_pix_clk_hz = 1500000000 * num_lanes / csi_pixel_bit_depth
+#if (CSI_PORT_LANES==2)
+                    serdes_pix_clk_hz = "187500000";
+#else
+                    serdes_pix_clk_hz = "375000000";
+#endif
+
+                    gain_factor = "10";
+                    min_gain_val = "0";                             /* dB */
+                    max_gain_val = "300";                           /* dB */
+                    step_gain_val = "3";                            /* 0.3 */
+                    default_gain = "0";
+                    min_hdr_ratio = "1";
+                    max_hdr_ratio = "1";
+                    framerate_factor = "1000000";
+                    min_framerate = "30000000";
+                    max_framerate = "30000000";
+                    step_framerate = "1";
+                    default_framerate = "30000000";
+                    exposure_factor = "1000000";
+                    min_exp_time = "24";                            /* us 1 line */
+                    max_exp_time = "33333";
+                    step_exp_time = "1";
+                    default_exp_time = "33333";                     /* us */
+                    embedded_metadata_height = "0";
+                };
+
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+                    port@0 {
+                        reg = <0>;
+                        isx021_out5: endpoint {
+                            vc-id = <1>;
+                            port-index = <0>;
+                            bus-width = <CSI_PORT_LANES>;
+                            remote-endpoint = <&csi_in5>;
+                        };
+                    };
+                };
+
+                gmsl-link {
+                    src-csi-port = "b";
+                    dst-csi-port = "a";
+                    serdes-csi-link = "b";
+                    csi-mode = "1x4";
+                    st-vc = <0>;
+                    vc-id = <1>;
+                    num-lanes = <CSI_PORT_LANES>;
+                    streams = "ued-u1","yuv8";
+                };
+            };
+            
+            isx021_e@1b {
+                status = "okay";
+                def-addr = <0x1a>;
+                reg = <0x1b>;
+                reg_mux = <2>;
+                nvidia,gmsl-ser-device = <&ser_e>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_2>;
+                sensor_model = "isx021";
+                compatible = "nvidia,tier4_isx021";
+                
+                /* Define any required hw resources needed by driver */
+                /* ie. clocks, io pins, power sources */
+                clock-names = "extperiph1", "pllp_grtba";
+                mclk = "extperiph1";
+                nvidia,fpga-device  = <&t4_fpga>;
+
+                /* Physical dimensions of sensor */
+                physical_w = "15.0";
+                physical_h = "12.5";
+
+                fsync-mode = "false";
+
+                distortion-correction = "false";
+
+                auto-exposure = "true";
+
+                /* Defines number of frames to be dropped by driver internally after applying */
+                /* sensor crop settings. Some sensors send corrupt frames after applying */
+                /* crop co-ordinates */
+                post_crop_frame_drop = "0";
+
+                /* Convert Gain to unit of dB (decibel) befor passing to kernel driver */
+                use_decibel_gain = "true";
+
+                /* enable CID_SENSOR_MODE_ID for sensor modes selection */
+                use_sensor_mode_id = "true";
+
+                mode0 {/*mode ISX021_MODE_1920X1280_CROP_30FPS*/
+                    mclk_khz = "24000";
+                    num_lanes = STRING(CSI_PORT_LANES);
+                    tegra_sinterface = "serial_e";
+                    vc_id = "0";
+                    discontinuous_clk = "no";
+                    dpcm_enable = "false";
+                    cil_settletime = "0";
+                    dynamic_pixel_bit_depth = "16";
+                    csi_pixel_bit_depth = "16";
+                    mode_type = "yuv";
+                    pixel_phase = "uyvy";
+
+                    active_w = "1920";
+                    active_h = "1280";
+                    readout_orientation = "0";
+                    line_length = "2250";
+                    inherent_gain = "1";
+
+#if (CSI_PORT_LANES==2)
+                    pix_clk_hz = "94500000";
+#else
+                    pix_clk_hz = "189000000";
+#endif
+                    // MIPI CSI clock needs to be 1.5GHz to support deskew
+                    // MIPI CSI output data rate = 1.5Gbps = (sensor or deserializer pixel clock in hertz) * (bits per pixel) / (number of CSI lanes)
+                    // 1500000000 = serdes_pix_clk_hz * csi_pixel_bit_depth / num_lanes
+                    // => serdes_pix_clk_hz = 1500000000 * num_lanes / csi_pixel_bit_depth
+#if (CSI_PORT_LANES==2)
+                    serdes_pix_clk_hz = "187500000";
+#else
+                    serdes_pix_clk_hz = "375000000";
+#endif
+
+                    gain_factor = "10";
+                    min_gain_val = "0";                             /* dB */
+                    max_gain_val = "300";                           /* dB */
+                    step_gain_val = "3";                            /* 0.3 */
+                    default_gain = "0";
+                    min_hdr_ratio = "1";
+                    max_hdr_ratio = "1";
+                    framerate_factor = "1000000";
+                    min_framerate = "30000000";
+                    max_framerate = "30000000";
+                    step_framerate = "1";
+                    default_framerate = "30000000";
+                    exposure_factor = "1000000";
+                    min_exp_time = "24";                            /* us 1 line */
+                    max_exp_time = "33333";
+                    step_exp_time = "1";
+                    default_exp_time = "33333";                     /* us */
+                    embedded_metadata_height = "0";
+                };
+
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+                    port@0 {
+                        reg = <0>;
+                        isx021_out4: endpoint {
+                            vc-id = <0>;
+                            port-index = <0>;
+                            bus-width = <CSI_PORT_LANES>;
+                            remote-endpoint = <&csi_in4>;
+                        };
+                    };
+                };
+
+                gmsl-link {
+                    src-csi-port = "b";
+                    dst-csi-port = "a";
+                    serdes-csi-link = "a";
+                    csi-mode = "1x4";
+                    st-vc = <0>;
+                    vc-id = <0>;
+                    num-lanes = <CSI_PORT_LANES>;
+                    streams = "ued-u1","yuv8";
+                };
+            }; // end isx021_e@1b
+          }; // gmsl_mux_i2c_2
+#endif // endif
+
+
+#if ENABLE_DSER3
+          gmsl_mux_i2c_3: i2c@3 {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            reg = <3>;
+            i2c-mux,deselect-on-exit;
+
+            gmsl_dser_3: max9296@48 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9296";
+                reg = <0x48>;
+                csi-mode = "2x4";
+                max-src = <2>;
+            };
+            ser_prim_3: max9295_prim@62 { 
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x62>;
+                is-prim-ser;
+            };
+            ser_g: max9295_a@42 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x42>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_3>;
+                prim-parent = <&ser_prim_3>;
+            };
+            ser_h: max9295_b@60 {
+                status = "okay";
+                compatible = "nvidia,tier4_max9295";
+                reg = <0x60>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_3>;
+                prim-parent = <&ser_prim_3>;
+            };
+            
+            isx021_h@1c {
+                status = "okay";
+                def-addr = <0x1a>;
+                reg = <0x1c>;
+                reg_mux = <3>;
+                nvidia,gmsl-ser-device = <&ser_h>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_3>;
+                sensor_model = "isx021";
+                compatible = "nvidia,tier4_isx021";
+                
+                /* Define any required hw resources needed by driver */
+                /* ie. clocks, io pins, power sources */
+                clock-names = "extperiph1", "pllp_grtba";
+                mclk = "extperiph1";
+                nvidia,fpga-device  = <&t4_fpga>;
+
+                /* Physical dimensions of sensor */
+                physical_w = "15.0";
+                physical_h = "12.5";
+
+                fsync-mode = "false";
+
+                distortion-correction = "false";
+
+                auto-exposure = "true";
+
+                /* Defines number of frames to be dropped by driver internally after applying */
+                /* sensor crop settings. Some sensors send corrupt frames after applying */
+                /* crop co-ordinates */
+                post_crop_frame_drop = "0";
+
+                /* Convert Gain to unit of dB (decibel) befor passing to kernel driver */
+                use_decibel_gain = "true";
+
+                /* enable CID_SENSOR_MODE_ID for sensor modes selection */
+                use_sensor_mode_id = "true";
+
+                mode0 {/*mode ISX021_MODE_1920X1280_CROP_30FPS*/
+                    mclk_khz = "24000";
+                    num_lanes = STRING(CSI_PORT_LANES);
+                    tegra_sinterface = "serial_g";
+                    vc_id = "1";
+                    discontinuous_clk = "no";
+                    dpcm_enable = "false";
+                    cil_settletime = "0";
+                    dynamic_pixel_bit_depth = "16";
+                    csi_pixel_bit_depth = "16";
+                    mode_type = "yuv";
+                    pixel_phase = "uyvy";
+
+                    active_w = "1920";
+                    active_h = "1280";
+                    readout_orientation = "0";
+                    line_length = "2250";
+                    inherent_gain = "1";
+
+#if (CSI_PORT_LANES==2)
+                    pix_clk_hz = "94500000";
+#else
+                    pix_clk_hz = "189000000";
+#endif
+                    // MIPI CSI clock needs to be 1.5GHz to support deskew
+                    // MIPI CSI output data rate = 1.5Gbps = (sensor or deserializer pixel clock in hertz) * (bits per pixel) / (number of CSI lanes)
+                    // 1500000000 = serdes_pix_clk_hz * csi_pixel_bit_depth / num_lanes
+                    // => serdes_pix_clk_hz = 1500000000 * num_lanes / csi_pixel_bit_depth
+#if (CSI_PORT_LANES==2)
+                    serdes_pix_clk_hz = "187500000";
+#else
+                    serdes_pix_clk_hz = "375000000";
+#endif
+
+                    gain_factor = "10";
+                    min_gain_val = "0";                             /* dB */
+                    max_gain_val = "300";                           /* dB */
+                    step_gain_val = "3";                            /* 0.3 */
+                    default_gain = "0";
+                    min_hdr_ratio = "1";
+                    max_hdr_ratio = "1";
+                    framerate_factor = "1000000";
+                    min_framerate = "30000000";
+                    max_framerate = "30000000";
+                    step_framerate = "1";
+                    default_framerate = "30000000";
+                    exposure_factor = "1000000";
+                    min_exp_time = "24";                            /* us 1 line */
+                    max_exp_time = "33333";
+                    step_exp_time = "1";
+                    default_exp_time = "33333";                     /* us */
+                    embedded_metadata_height = "0";
+                };
+
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+                    port@0 {
+                        reg = <0>;
+                        isx021_out7: endpoint {
+                            vc-id = <1>;
+                            port-index = <0>;
+                            bus-width = <CSI_PORT_LANES>;
+                            remote-endpoint = <&csi_in7>;
+                        };
+                    };
+                };
+
+                gmsl-link {
+                    src-csi-port = "b";
+                    dst-csi-port = "a";
+                    serdes-csi-link = "b";
+                    csi-mode = "1x4";
+                    st-vc = <0>;
+                    vc-id = <1>;
+                    num-lanes = <CSI_PORT_LANES>;
+                    streams = "ued-u1","yuv8";
+                };
+            };
+            
+            isx021_g@1b {
+                status = "okay";
+                def-addr = <0x1a>;
+                reg = <0x1b>;
+                reg_mux = <3>;
+                nvidia,gmsl-ser-device = <&ser_g>;
+                nvidia,gmsl-dser-device = <&gmsl_dser_3>;
+                sensor_model = "isx021";
+                compatible = "nvidia,tier4_isx021";
+                
+                /* Define any required hw resources needed by driver */
+                /* ie. clocks, io pins, power sources */
+                clock-names = "extperiph1", "pllp_grtba";
+                mclk = "extperiph1";
+                nvidia,fpga-device  = <&t4_fpga>;
+
+                /* Physical dimensions of sensor */
+                physical_w = "15.0";
+                physical_h = "12.5";
+
+                fsync-mode = "false";
+
+                distortion-correction = "false";
+
+                auto-exposure = "true";
+
+                /* Defines number of frames to be dropped by driver internally after applying */
+                /* sensor crop settings. Some sensors send corrupt frames after applying */
+                /* crop co-ordinates */
+                post_crop_frame_drop = "0";
+
+                /* Convert Gain to unit of dB (decibel) befor passing to kernel driver */
+                use_decibel_gain = "true";
+
+                /* enable CID_SENSOR_MODE_ID for sensor modes selection */
+                use_sensor_mode_id = "true";
+
+                mode0 {/*mode ISX021_MODE_1920X1280_CROP_30FPS*/
+                    mclk_khz = "24000";
+                    num_lanes = STRING(CSI_PORT_LANES);
+                    tegra_sinterface = "serial_g";
+                    vc_id = "0";
+                    discontinuous_clk = "no";
+                    dpcm_enable = "false";
+                    cil_settletime = "0";
+                    dynamic_pixel_bit_depth = "16";
+                    csi_pixel_bit_depth = "16";
+                    mode_type = "yuv";
+                    pixel_phase = "uyvy";
+
+                    active_w = "1920";
+                    active_h = "1280";
+                    readout_orientation = "0";
+                    line_length = "2250";
+                    inherent_gain = "1";
+
+#if (CSI_PORT_LANES==2)
+                    pix_clk_hz = "94500000";
+#else
+                    pix_clk_hz = "189000000";
+#endif
+                    // MIPI CSI clock needs to be 1.5GHz to support deskew
+                    // MIPI CSI output data rate = 1.5Gbps = (sensor or deserializer pixel clock in hertz) * (bits per pixel) / (number of CSI lanes)
+                    // 1500000000 = serdes_pix_clk_hz * csi_pixel_bit_depth / num_lanes
+                    // => serdes_pix_clk_hz = 1500000000 * num_lanes / csi_pixel_bit_depth
+#if (CSI_PORT_LANES==2)
+                    serdes_pix_clk_hz = "187500000";
+#else
+                    serdes_pix_clk_hz = "375000000";
+#endif
+
+                    gain_factor = "10";
+                    min_gain_val = "0";                             /* dB */
+                    max_gain_val = "300";                           /* dB */
+                    step_gain_val = "3";                            /* 0.3 */
+                    default_gain = "0";
+                    min_hdr_ratio = "1";
+                    max_hdr_ratio = "1";
+                    framerate_factor = "1000000";
+                    min_framerate = "30000000";
+                    max_framerate = "30000000";
+                    step_framerate = "1";
+                    default_framerate = "30000000";
+                    exposure_factor = "1000000";
+                    min_exp_time = "24";                            /* us 1 line */
+                    max_exp_time = "33333";
+                    step_exp_time = "1";
+                    default_exp_time = "33333";                     /* us */
+                    embedded_metadata_height = "0";
+                };
+
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+                    port@0 {
+                        reg = <0>;
+                        isx021_out6: endpoint {
+                            vc-id = <0>;
+                            port-index = <0>;
+                            bus-width = <CSI_PORT_LANES>;
+                            remote-endpoint = <&csi_in6>;
+                        };
+                    };
+                };
+
+                gmsl-link {
+                    src-csi-port = "b";
+                    dst-csi-port = "a";
+                    serdes-csi-link = "a";
+                    csi-mode = "1x4";
+                    st-vc = <0>;
+                    vc-id = <0>;
+                    num-lanes = <CSI_PORT_LANES>;
+                    streams = "ued-u1","yuv8";
+                };
+            }; // end isx021_g@1b
+          }; // gmsl_mux_i2c_3
+#endif // endif
+
+        }; // end tca9546@70
+      }; // end overlay
+    }; // end fragment@0
+
+    fragment@1 {
+      target = <&csi_base>;
+      __overlay__ {
+        status = "okay";
+      };
+    };
+
+#if ENABLE_DSER0
+    fragment@2 {
+      target = <&csi_in0>;
+      __overlay__ {
+        remote-endpoint = <&isx021_out0>;
+        port-index = <0>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+
+    fragment@3 {
+      target = <&csi_in1>;
+      __overlay__ {
+        remote-endpoint = <&isx021_out1>;
+        port-index = <0>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+#endif
+#if ENABLE_DSER1
+    fragment@4 {
+      target = <&csi_in2>;
+      __overlay__ {
+        remote-endpoint = <&isx021_out2>;
+        port-index = <2>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+
+    fragment@5 {
+      target = <&csi_in3>;
+      __overlay__ {
+        remote-endpoint = <&isx021_out3>;
+        port-index = <2>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+#endif
+#if ENABLE_DSER2
+    fragment@6 {
+      target = <&csi_in4>;
+      __overlay__ {
+        remote-endpoint = <&isx021_out4>;
+        port-index = <4>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+
+    fragment@7 {
+      target = <&csi_in5>;
+      __overlay__ {
+        remote-endpoint = <&isx021_out5>;
+        port-index = <4>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+#endif
+#if ENABLE_DSER3
+    fragment@8 {
+      target = <&csi_in6>;
+      __overlay__ {
+        remote-endpoint = <&isx021_out6>;
+        port-index = <6>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+
+    fragment@9 {
+      target = <&csi_in7>;
+      __overlay__ {
+        remote-endpoint = <&isx021_out7>;
+        port-index = <6>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+#endif
+    fragment@10 {
+      target = <&capture_vi_base>;
+      __overlay__ {
+        status = "okay";
+      };
+    };
+
+    fragment@11 {
+      target = <&vi0>;
+      __overlay__ {
+        status = "okay";
+      };
+    };
+
+    fragment@12 {
+      target = <&vi1>;
+      __overlay__ {
+        status = "okay";
+      };
+    };
+
+    fragment@13 {
+      target = <&camera_platform_base>;
+      __overlay__ {
+        status = "okay";
+        num_csi_lanes = <16>;
+        // num_csi_lanes = <32>; // total number of CSI lanes when all cameras are active
+        max_lane_speed = <2500000>;
+        min_bits_per_pixel = <16>;
+      };
+    };
+
+#if ENABLE_DSER0
+    fragment@14 {
+      target = <&camera_module0>;
+      __overlay__ {
+        status = "okay";
+        badge = "tier4_isx021_rear";
+        position = "rear";
+        orientation = "1";
+        drivernode0 {
+          status = "okay";
+          pcl_id = "v4l2_sensor";
+          devname = "isx021 30-001b";
+          proc-device-tree = "/proc/device-tree/i2c@c250000/tca9546@70/i2c@0/isx021_a@1b";
+        };
+      };
+    }; 
+
+    fragment@15 {
+      target = <&camera_module1>;
+      __overlay__ {
+        status = "okay";
+        badge = "tier4_isx021_front";
+        position = "front";
+        orientation = "1";
+        drivernode0 {
+          status = "okay";
+          pcl_id = "v4l2_sensor";
+          devname = "isx021 30-001c";
+          proc-device-tree = "/proc/device-tree/i2c@c250000/tca9546@70/i2c@0/isx021_b@1c";
+        };
+      };
+    };
+#endif
+
+#if ENABLE_DSER1
+    fragment@16 {
+      target = <&camera_module2>;
+      __overlay__ {
+        status = "okay";
+        badge = "tier4_isx021_topright";
+        position = "topright";
+        orientation = "1";
+        drivernode0 {
+          status = "okay";
+          pcl_id = "v4l2_sensor";
+          devname = "isx021 31-001b";
+          proc-device-tree = "/proc/device-tree/i2c@c250000/tca9546@70/i2c@1/isx021_c@1b";
+        };
+      };
+    }; 
+
+    fragment@17 {
+      target = <&camera_module3>;
+      __overlay__ {
+        status = "okay";
+        badge = "tier4_isx021_bottomright";
+        position = "bottomright";
+        orientation = "1";
+        drivernode0 {
+          status = "okay";
+          pcl_id = "v4l2_sensor";
+          devname = "isx021 31-001c";
+          proc-device-tree = "/proc/device-tree/i2c@c250000/tca9546@70/i2c@1/isx021_d@1c";
+        };
+      };
+    }; 
+#endif
+
+#if ENABLE_DSER2
+    fragment@18 {
+      target = <&camera_module4>;
+      __overlay__ {
+        status = "okay";
+        badge = "tier4_isx021_topleft";
+        position = "topleft";
+        orientation = "1";
+        drivernode0 {
+          status = "okay";
+          pcl_id = "v4l2_sensor";
+          devname = "isx021 32-001b";
+          proc-device-tree = "/proc/device-tree/i2c@c250000/tca9546@70/i2c@2/isx021_e@1b";
+        };
+      };
+    }; 
+
+    fragment@19 {
+      target = <&camera_module5>;
+      __overlay__ {
+        status = "okay";
+        badge = "tier4_isx021_centerright";
+        position = "centerright";
+        orientation = "1";
+        drivernode0 {
+          status = "okay";
+          pcl_id = "v4l2_sensor";
+          devname = "isx021 32-001c";
+          proc-device-tree = "/proc/device-tree/i2c@c250000/tca9546@70/i2c@2/isx021_f@1c";
+        };
+      };
+    };
+#endif
+
+#if ENABLE_DSER3
+    fragment@20 {
+      target = <&camera_module6>;
+      __overlay__ {
+        status = "okay";
+        badge = "tier4_isx021_centerleft";
+        position = "centerleft";
+        orientation = "1";
+        drivernode0 {
+          status = "okay";
+          pcl_id = "v4l2_sensor";
+          devname = "isx021 33-001b";
+          proc-device-tree = "/proc/device-tree/i2c@c250000/tca9546@70/i2c@3/isx021_g@1b";
+        };
+      };
+    }; 
+
+    fragment@21 {
+      target = <&camera_module7>;
+      __overlay__ {
+        status = "okay";
+        badge = "tier4_isx021_bottomleft";
+        position = "bottomleft";
+        orientation = "1";
+        drivernode0 {
+          status = "okay";
+          pcl_id = "v4l2_sensor";
+          devname = "isx021 33-001c";
+          proc-device-tree = "/proc/device-tree/i2c@c250000/tca9546@70/i2c@3/isx021_h@1c";
+        };
+      };
+    }; 
+#endif
+
+#if ENABLE_DSER0
+    fragment@22 {
+      target = <&vi_in0>;
+      __overlay__ {
+        vc-id = <0>;
+        port-index = <0>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+
+    fragment@23 {
+      target = <&vi_in1>;
+      __overlay__ {
+        vc-id = <1>;
+        port-index = <0>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+#endif
+#if ENABLE_DSER1
+    fragment@24 {
+      target = <&vi_in2>;
+      __overlay__ {
+        vc-id = <0>;
+        port-index = <2>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+    
+    fragment@25 {
+      target = <&vi_in3>;
+      __overlay__ {
+        vc-id = <1>;
+        port-index = <2>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+#endif
+#if ENABLE_DSER2
+    fragment@26 {
+      target = <&vi_in4>;
+      __overlay__ {
+        vc-id = <0>;
+        port-index = <4>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+
+    fragment@27 {
+      target = <&vi_in5>;
+      __overlay__ {
+        vc-id = <1>;
+        port-index = <4>;
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+#endif
+#if ENABLE_DSER3
+    fragment@28 {
+      target = <&vi_in6>;
+      __overlay__ {
+        vc-id = <0>;
+        port-index = <5>; // For the last x4 VI, stream_id=5
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+
+    fragment@29 {
+      target = <&vi_in7>;
+      __overlay__ {
+        vc-id = <1>;
+        port-index = <5>; // For the last x4 VI, stream_id=5
+        bus-width = <CSI_PORT_LANES>;
+      };
+    };
+#endif
+
+/* FPGA */
+
+    fragment@30 {
+      target-path = "/i2c@3180000";
+      __overlay__ {
+       t4_fpga: tier4_fpga@66 {
+          compatible = "nvidia,tier4_fpga";
+          reg = <0x66>;
+          generate-fsync = "false";
+          status = "okay";
+        };
+      };
+    };
+
+    fragment@31 {
+      target = <&gen2_i2c>;
+      __overlay__ {
+        tca9546@70 {
+            // Disable built-in old io board device tree
+            status = "disabled";
+            force_bus_start = <0x28>;
+            reg = <0x70>;
+            i2c@0 {
+                status = "disabled";
+                reg = <0>;
+            };
+            i2c@1 {
+                status = "disabled";
+                reg = <1>;
+            };
+            i2c@2 {
+                status = "disabled";
+                reg = <2>;
+            };
+            i2c@3 {
+                status = "disabled";
+                reg = <3>;
+            };
+        };
+      };
+    };
+};

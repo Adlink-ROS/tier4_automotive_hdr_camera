@@ -8,7 +8,8 @@ Xavier_word           := Xavier
 Xavier_other_word_1   := Jetson-AGX
 Orin_word             := Orin
 Orin_Compatible_word  := p3737-0000+p3701-0000nvidia
-ROScube_word          := ROScube-X
+ROScube_58G_word      := ROScube-X 58G
+ROScube_59G_word      := ROScube-X 590
 
 INST_PACKAGE_NAME     ?=  $(shell cat dkms.conf | grep 'PACKAGE_NAME' | cut -d '=' -f 2 | cut -d '"' -f 2 )
 INST_PACKAGE_VERSION  ?=  $(shell cat dkms.conf | grep 'PACKAGE_VERSION' | cut -d '=' -f 2 | cut -d '"' -f 2 )
@@ -47,8 +48,10 @@ else ifeq ($(Orin_word), $(filter $(Orin_word),$(dt_model)))
     else
         MODEL := Not_Supported_Orin
     endif
-else ifeq ($(ROScube_word), $(filter $(ROScube_word),$(dt_model)))
-    MODEL := ROScube-X
+else ifeq ($(ROScube_58G_word), $(filter $(ROScube_58G_word),$(dt_model)))
+    MODEL := $(ROScube_58G_word)
+else ifeq ($(ROScube_59G_word), $(filter $(ROScube_59G_word),$(dt_model)))
+    MODEL := $(ROScube_59G_word)
 else
     MODEL := Not_Supported_Model_ROScube
 endif
@@ -57,7 +60,7 @@ $(warning MODEL = $(MODEL))
 
 ifeq ($(L4T_RELEASE_MAIN), R32)
     ifeq ($(L4T_RELEASE_MAJOR), 5)
-        ifeq ($(MODEL), $(ROScube_word))
+        ifeq ($(MODEL), $(ROScube_58G_word))
             KERNELRELEASE := 4.9.201-rqx58g
             TARGET_ISX021_DTS := tier4-isx021-gmsl-device-tree-overlay-roscube-r32_x
             TARGET_ISX021_IMX490_DTS := tier4-isx021-imx490-gmsl-device-tree-overlay-roscube-r32_x
@@ -71,7 +74,7 @@ ifeq ($(L4T_RELEASE_MAIN), R32)
             KERNELRELEASE := Not_Supported
         endif
     else ifeq ($(L4T_RELEASE_MAJOR), 6)
-        ifeq ($(MODEL),$(ROScube_word))
+        ifeq ($(MODEL),$(ROScube_58G_word))
             KERNELRELEASE := 4.9.253-rqx58g
             TARGET_ISX021_DTS := tier4-isx021-gmsl-device-tree-overlay-roscube-r32_x
             TARGET_ISX021_IMX490_DTS := tier4-isx021-imx490-gmsl-device-tree-overlay-roscube-r32_x
@@ -109,9 +112,14 @@ else ifeq ($(L4T_RELEASE_MAIN), R34)
     endif
 else ifeq ($(L4T_RELEASE_MAIN), R35)
     ifeq ($(L4T_RELEASE_MAJOR), 1)
-        ifeq ($(MODEL),$(ROScube_word))
+        ifeq ($(MODEL),$(ROScube_58G_word))
             KERNELRELEASE            := 5.10.104-rqx58g
             TARGET_ISX021_DTS        := tier4-isx021-gmsl-device-tree-overlay-rqx58g-r35_x
+            TARGET_ISX021_IMX490_DTS := tier4-isx021-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
+            TARGET_IMX490_DTS        := tier4-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
+        else ifeq ($(MODEL),$(ROScube_59G_word))
+            KERNELRELEASE            := 5.10.104-rqx59x
+            TARGET_ISX021_DTS        := tier4-isx021-gmsl-device-tree-overlay-rqx59g-r35_x
             TARGET_ISX021_IMX490_DTS := tier4-isx021-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
             TARGET_IMX490_DTS        := tier4-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
         else ifeq ($(MODEL),$(Xavier_word))
@@ -177,7 +185,7 @@ modules:
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=$(ARCH) M=$(BUILD_DIR) src=$(PWD) modules
 binary_module:
 	install -d $(DEST_FIRMWARE_DIR)
-	cp -f $(SRC_FIRMWARE_BINARY) $(DEST_FIRMWARE_BINARY)
+	sudo cp -f $(SRC_FIRMWARE_BINARY) $(DEST_FIRMWARE_BINARY)
 dtbo:
 
 ifeq ($(KERNELRELEASE), 5.10.65-tegra)
@@ -190,11 +198,18 @@ else ifeq ($(KERNELRELEASE), 5.10.104-tegra)
 	sed -i -e '/^ *jetson-header-name/s/AGX  *Xavier  *CSI/AGX CSI/' $(TARGET_IMX490_DTS).dts
 endif
 
+ifeq ($(MODEL),$(ROScube_59G_word))
+	cpp -nostdinc -I include -I arch  -undef -x assembler-with-cpp $(TARGET_ISX021_DTS).dts $(TARGET_ISX021_DTS).dts.preprocessed
+	dtc -I dts -O dtb -o $(TARGET_ISX021_DTS).dtbo -p 0x1000 $(TARGET_ISX021_DTS).dts.preprocessed
+	sudo cp -rf $(TARGET_ISX021_DTS).dtbo /boot
+	sudo /opt/nvidia/jetson-io/config-by-hardware.py -n 1='TIERIV ISX021 GMSL2 Camera Device Tree Overlay'
+else
 	dtc -O dtb -o $(TARGET_ISX021_DTS).dtbo -@ $(TARGET_ISX021_DTS).dts
 	dtc -O dtb -o $(TARGET_IMX490_DTS).dtbo -@ $(TARGET_IMX490_DTS).dts
 	dtc -O dtb -o $(TARGET_ISX021_IMX490_DTS).dtbo -@ $(TARGET_ISX021_IMX490_DTS).dts
-	cp -rf $(TARGET_ISX021_DTS).dtbo /boot
-	cp -rf $(TARGET_IMX490_DTS).dtbo /boot
-	cp -rf $(TARGET_ISX021_IMX490_DTS).dtbo /boot
+	sudo cp -rf $(TARGET_ISX021_DTS).dtbo /boot
+	sudo cp -rf $(TARGET_IMX490_DTS).dtbo /boot
+	sudo cp -rf $(TARGET_ISX021_IMX490_DTS).dtbo /boot
+endif
 clean:
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=$(ARCH) M=$(BUILD_DIR) src=$(PWD) clean

@@ -188,7 +188,7 @@ int tier4_fpga_set_fsync_signal_frequency(struct device *dev, int des_number, in
 	int err = 0;
 	u8	val8, addr8;
 
-	addr8 = (u8)(FPGA_REG_FREQ_BASE_ADDR + 12*(des_number-1));
+	addr8 = (u8)(FPGA_REG_FREQ_BASE_ADDR + 12*(des_number));
 
 	val8 = (u8)(frequency & 0xFF);
 

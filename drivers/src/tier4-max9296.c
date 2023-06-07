@@ -304,11 +304,11 @@ int tier4_max9296_power_on(struct device *dev)
 
 		usleep_range(1, 2);
 
-		if (priv->reset_gpio)
+		if (gpio_is_valid(priv->reset_gpio)) {
 //			gpio_set_value(priv->reset_gpio, 0);
 			gpio_direction_output(priv->reset_gpio, 0);
-
-		usleep_range(50, 80);
+			usleep_range(50, 80);
+		}
 
 		if (priv->vdd_cam_1v2) {
 			err = regulator_enable(priv->vdd_cam_1v2);
@@ -319,7 +319,7 @@ int tier4_max9296_power_on(struct device *dev)
 		usleep_range(50, 80);
 
 		/*exit reset mode: XCLR */
-		if (priv->reset_gpio) {
+		if (gpio_is_valid(priv->reset_gpio)) {
 //			gpio_set_value(priv->reset_gpio, 0);
 			gpio_direction_output(priv->reset_gpio, 0);
 			usleep_range(50, 80);
@@ -352,9 +352,10 @@ void tier4_max9296_power_off(struct device *dev)
 	if (priv->pw_ref == 0) {
 		/* enter reset mode: XCLR */
 		usleep_range(1, 2);
-		if (priv->reset_gpio)
+		if (gpio_is_valid(priv->reset_gpio)) {
 //			gpio_set_value(priv->reset_gpio, 0);
 			gpio_direction_output(priv->reset_gpio, 0);
+		}
 
 		if (priv->vdd_cam_1v2)
 			regulator_disable(priv->vdd_cam_1v2);
@@ -1017,8 +1018,8 @@ static int tier4_max9296_parse_dt(struct tier4_max9296 *priv,
 
 	priv->reset_gpio = of_get_named_gpio(node, "reset-gpios", 0);
 	if (priv->reset_gpio < 0) {
-		dev_err(&client->dev, "[%s] : reset-gpios not found %d\n", __func__, err);
-		return err;
+		dev_warn(&client->dev, "[%s] : reset-gpios not found %d\n", __func__, err);
+		// return err;
 	}
 
   	dev_dbg(&client->dev, "[%s] priv->reset_gpio = %d\n",__func__, priv->reset_gpio);

@@ -1,0 +1,15 @@
+drivers/debian
+*.o
+*.d
+*.ko
+*.cmd
+*.mod
+*.mod.c
+.*.o
+.*.d
+.*.ko
+.*.cmd
+.*.mod
+.*.mod.c
+Module.symvers
+modules.order
