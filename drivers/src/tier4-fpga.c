@@ -153,6 +153,11 @@ int tier4_fpga_disable_generate_fsync_signal(struct device *dev )
 //	struct tier4_fpga *priv = dev_get_drvdata(dev);
 	int err = 0;
 
+	if (!dev) {
+		printk("[%s] Error! FPGA dev not found.\n");
+		return 0;
+	}
+
 	err = tier4_fpga_write_reg(dev, FPGA_REG_ENABLE_ADDR, FPGA_DISABLED);
 
 	if (err) {

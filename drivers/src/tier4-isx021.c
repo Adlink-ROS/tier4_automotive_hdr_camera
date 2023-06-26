@@ -1787,13 +1787,15 @@ static int tier4_isx021_board_setup(struct tier4_isx021 *priv)
 
 		if (fpga_i2c == NULL) {
 			dev_err(dev, "[%s] : Missing FPGA Dev Handle\n", __func__);
-			goto error;
+			// goto error;
 		}
-		if (fpga_i2c->dev.driver == NULL) {
+		if (fpga_i2c && fpga_i2c->dev.driver == NULL) {
 			dev_err(dev, "[%s] : Missing FPGA driver\n", __func__);
-			goto error;
+			// goto error;
 		}
-		priv->fpga_dev = &fpga_i2c->dev;
+		else {
+			priv->fpga_dev = &fpga_i2c->dev;
+		}
 	}
 
 	/* populate g_ctx from DT */

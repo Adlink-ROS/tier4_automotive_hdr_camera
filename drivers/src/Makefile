@@ -10,6 +10,10 @@ Orin_word             := Orin
 Orin_Compatible_word  := p3737-0000+p3701-0000nvidia
 ROScube_58G_word      := ROScube-X 58G
 ROScube_59G_word      := ROScube-X 590
+ADLINK_IO_BOARD       := $(shell i2cget -f -y 7 0x70 0x00 2> /dev/null)
+LEOPARD_IO_BOARD      := $(shell i2cget -f -y 1 0x70 0x00 2> /dev/null)
+MODEL_RQX59G_ADLINK   := RQX59G
+MODEL_RQX59G_LEOPARD  := RQX59G-LEOPARD
 
 INST_PACKAGE_NAME     ?=  $(shell cat dkms.conf | grep 'PACKAGE_NAME' | cut -d '=' -f 2 | cut -d '"' -f 2 )
 INST_PACKAGE_VERSION  ?=  $(shell cat dkms.conf | grep 'PACKAGE_VERSION' | cut -d '=' -f 2 | cut -d '"' -f 2 )
@@ -51,7 +55,15 @@ else ifeq ($(Orin_word), $(filter $(Orin_word),$(dt_model)))
 else ifeq ($(ROScube_58G_word), $(filter $(ROScube_58G_word),$(dt_model)))
     MODEL := $(ROScube_58G_word)
 else ifeq ($(ROScube_59G_word), $(filter $(ROScube_59G_word),$(dt_model)))
-    MODEL := $(ROScube_59G_word)
+	ifeq ($(ADLINK_IO_BOARD), 0x00)
+		# It's ADLINK IO Board
+		MODEL := $(MODEL_RQX59G_ADLINK)
+	else ifeq ($(LEOPARD_IO_BOARD), 0x00)
+		# It's Leopard IO Board
+        MODEL := $(MODEL_RQX59G_LEOPARD)
+    else
+    	MODEL := Not_Supported_Model
+    endif
 else
     MODEL := Not_Supported_Model_ROScube
 endif
@@ -117,9 +129,14 @@ else ifeq ($(L4T_RELEASE_MAIN), R35)
             TARGET_ISX021_DTS        := tier4-isx021-gmsl-device-tree-overlay-rqx58g-r35_x
             TARGET_ISX021_IMX490_DTS := tier4-isx021-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
             TARGET_IMX490_DTS        := tier4-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
-        else ifeq ($(MODEL),$(ROScube_59G_word))
+        else ifeq ($(MODEL),$(MODEL_RQX59G_ADLINK))
             KERNELRELEASE            := 5.10.104-rqx59x
             TARGET_ISX021_DTS        := tier4-isx021-gmsl-device-tree-overlay-rqx59g-r35_x
+            TARGET_ISX021_IMX490_DTS := tier4-isx021-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
+            TARGET_IMX490_DTS        := tier4-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
+        else ifeq ($(MODEL),$(MODEL_RQX59G_LEOPARD))
+            KERNELRELEASE            := 5.10.104-rqx59x
+            TARGET_ISX021_DTS        := tier4-isx021-gmsl-device-tree-overlay-rqx59g-leopard
             TARGET_ISX021_IMX490_DTS := tier4-isx021-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
             TARGET_IMX490_DTS        := tier4-imx490-gmsl-device-tree-overlay-rqx58g-r35_x
         else ifeq ($(MODEL),$(Xavier_word))
@@ -198,7 +215,12 @@ else ifeq ($(KERNELRELEASE), 5.10.104-tegra)
 	sed -i -e '/^ *jetson-header-name/s/AGX  *Xavier  *CSI/AGX CSI/' $(TARGET_IMX490_DTS).dts
 endif
 
-ifeq ($(MODEL),$(ROScube_59G_word))
+ifeq ($(MODEL),$(MODEL_RQX59G_ADLINK))
+	cpp -nostdinc -I include -I arch  -undef -x assembler-with-cpp $(TARGET_ISX021_DTS).dts $(TARGET_ISX021_DTS).dts.preprocessed
+	dtc -I dts -O dtb -o $(TARGET_ISX021_DTS).dtbo -p 0x1000 $(TARGET_ISX021_DTS).dts.preprocessed
+	sudo cp -rf $(TARGET_ISX021_DTS).dtbo /boot
+	sudo /opt/nvidia/jetson-io/config-by-hardware.py -n 1='TIERIV ISX021 GMSL2 Camera Device Tree Overlay'
+else ifeq ($(MODEL),$(MODEL_RQX59G_LEOPARD))
 	cpp -nostdinc -I include -I arch  -undef -x assembler-with-cpp $(TARGET_ISX021_DTS).dts $(TARGET_ISX021_DTS).dts.preprocessed
 	dtc -I dts -O dtb -o $(TARGET_ISX021_DTS).dtbo -p 0x1000 $(TARGET_ISX021_DTS).dts.preprocessed
 	sudo cp -rf $(TARGET_ISX021_DTS).dtbo /boot
