@@ -35,7 +35,7 @@ struct tier4_max9296_source_ctx {
 
 #define _USE_CHECK_LINK_LOCKED_ 1
 
-#define MAX9296_SHOW_I2C_WRITE_MSG 0
+#define MAX9296_SHOW_I2C_WRITE_MSG 1
 
 /* register specifics */
 

@@ -45,15 +45,18 @@
 #include "tier4-max9295.h"
 #include "tier4-max9296.h"
 
-#define USE_FIRMWARE
+#define DEBUG_SCRIPT
 
-//#define USE_I2C_TRANSFER
+#define USE_FIRMWARE
+// #undef  USE_FIRMWARE
+
+// #define USE_I2C_TRANSFER
 #define USE_I2C_READ_REG
 
 #undef SHOW_I2C_READ_MSG
 
-// #define SHOW_I2C_WRITE_MSG
-#undef  SHOW_I2C_WRITE_MSG
+#define SHOW_I2C_WRITE_MSG
+// #undef  SHOW_I2C_WRITE_MSG
 
 #undef USE_CHECK_MODE_SEL
 
@@ -2026,6 +2029,8 @@ static int tier4_isx021_set_mode(struct tegracam_device *tc_dev)
 	struct device *dev = tc_dev->dev;
 
 	int err = 0;
+	
+	dev_info(dev, "[%s]: start\n", __func__);
 
 	switch (s_data->mode) {
 	case ISX021_MODE_1920X1280_CROP_30FPS:
@@ -2230,6 +2235,8 @@ static int tier4_isx021_stop_streaming(struct tegracam_device *tc_dev)
 		(struct tier4_isx021 *)tegracam_get_privdata(tc_dev);
 	int i, err = 0;
 
+	dev_info(dev, "[%s]: start\n", __func__);
+#ifndef DEBUG_SCRIPT
 	mutex_lock(&tier4_isx021_lock);
 
 	for (i = 0; i < camera_channel_count; i++) {
@@ -2249,7 +2256,7 @@ static int tier4_isx021_stop_streaming(struct tegracam_device *tc_dev)
 	}
 
 	mutex_unlock(&tier4_isx021_lock);
-
+#endif
 	return NO_ERROR;
 }
 
@@ -2290,6 +2297,10 @@ static int tier4_isx021_start_streaming(struct tegracam_device *tc_dev)
 	struct tier4_isx021 *priv =
 		(struct tier4_isx021 *)tegracam_get_privdata(tc_dev);
 	struct device *dev = tc_dev->dev;
+
+	dev_info(dev, "[%s]: start\n", __func__);
+
+#ifndef DEBUG_SCRIPT
 
 	mutex_lock(&tier4_isx021_lock);
 
@@ -2403,7 +2414,7 @@ error_exit:
 	mutex_unlock(&tier4_isx021_lock);
 
 	//    tier4_isx021_sensor_mutex_unlock();
-
+#endif
 	return err;
 }
 
@@ -2425,6 +2436,8 @@ static struct camera_common_sensor_ops tier4_isx021_common_ops = {
 static int tier4_isx021_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	// struct i2c_client *client = v4l2_get_subdevdata(sd);
+
+	printk(KERN_INFO "[%s]: start\n", __func__);
 
 	return NO_ERROR;
 }
@@ -2888,6 +2901,12 @@ static int tier4_isx021_probe(struct i2c_client *client,
 	loff_t size;
 #endif
 
+#ifdef DEBUG_SCRIPT
+	dev_err(dev, "DEBUG_SCRIPT is enabled!");
+#endif
+
+	dev_info(dev, "tier4_isx021_probe");
+
 	tier4_isx021_sensor_mutex_lock();
 
 	//  dev_info(dev, "[%s] : Probing V4L2 Sensor.\n", __func__);
@@ -2980,6 +2999,7 @@ static int tier4_isx021_probe(struct i2c_client *client,
 
 	tegracam_set_privdata(tc_dev, (void *)priv);
 
+#ifndef DEBUG_SCRIPT
 	err = tier4_isx021_board_setup(priv);
 
 	if (err) {
@@ -3034,6 +3054,20 @@ static int tier4_isx021_probe(struct i2c_client *client,
 			__func__);
 		goto err_max9296_unreg;
 	}
+
+#else 
+	// if DEBUG_SCRIPT
+	err = tegracam_v4l2subdev_register(tc_dev, true);
+	if (err) {
+		dev_err(dev,
+			"[%s] : Tegra Camera Subdev Registration failed.\n",
+			__func__);
+	}
+	dev_info(&client->dev, "Proc done");
+	tier4_isx021_sensor_mutex_unlock();
+	return 0;
+#endif // DEBUG_SCRIPT
+
 
 	err = tegracam_v4l2subdev_register(tc_dev, true);
 	if (err) {
@@ -3099,6 +3133,7 @@ static int tier4_isx021_remove(struct i2c_client *client)
 	struct camera_common_data *s_data = to_camera_common_data(&client->dev);
 	struct tier4_isx021 *priv = (struct tier4_isx021 *)s_data->priv;
 
+#ifndef DEBUG_SCRIPT
 	tier4_max9295_unset_v4l2_subdev(priv->ser_dev);
 	device_remove_file(&client->dev, &dev_attr_test_hw_fault);
 
@@ -3108,6 +3143,7 @@ static int tier4_isx021_remove(struct i2c_client *client)
 
 	tier4_max9296_sdev_unregister(priv->dser_dev, &client->dev);
 	tier4_max9295_sdev_unpair(priv->ser_dev, &client->dev);
+#endif
 
 	tegracam_v4l2subdev_unregister(priv->tc_dev);
 
@@ -3161,6 +3197,7 @@ static void tier4_isx021_shutdown(struct i2c_client *client)
 	struct tier4_isx021 *priv = NULL;
 	int i;
 
+#ifndef DEBUG_SCRIPT
 	tier4_isx021_sensor_mutex_unlock();
 
 	mutex_lock(&tier4_isx021_lock);
@@ -3322,6 +3359,7 @@ error_exit:
 	mutex_unlock(&tier4_isx021_lock);
 
 	tier4_isx021_sensor_mutex_unlock();
+#endif
 }
 
 static const struct i2c_device_id tier4_isx021_id[] = { { "tier4_isx021", 0 },

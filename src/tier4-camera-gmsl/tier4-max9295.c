@@ -24,7 +24,7 @@
 #include "tier4-max9295.h"
 #include "tier4-gmsl-link.h"
 
-#define MAX9295_SHOW_I2C_WRITE_MSG 0
+#define MAX9295_SHOW_I2C_WRITE_MSG 1
 
 /* register specifics */
 

@@ -375,7 +375,7 @@ modules:
 
 binary_module:
 	install -d $(DEST_FIRMWARE_DIR)
-	cp -f $(SRC_FIRMWARE_BINARY) $(DEST_FIRMWARE_BINARY)
+	sudo cp -f $(SRC_FIRMWARE_BINARY) $(DEST_FIRMWARE_BINARY)
 
 $(TARGET_ISX021_DTS).dts:
 	python3 ./$(MAKE_OVERLAY_DTS_CMD) -8 C1
