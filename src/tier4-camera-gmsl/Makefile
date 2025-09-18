@@ -1,6 +1,9 @@
 ARCH          = arm64
 KDIR          = /lib/modules/$(shell uname -r)/build/
-CROSS_COMPILE =
+
+EXTRA_CFLAGS += -I /usr/src/nvidia/nvidia-oot/include/
+KBUILD_EXTRA_SYMBOLS += /usr/src/nvidia/nvidia-oot/Module.symvers
+EXTRA_MAKE_FLAGS += EXTRA_CFLAGS="$(EXTRA_CFLAGS)" KBUILD_EXTRA_SYMBOLS="$(KBUILD_EXTRA_SYMBOLS)"
 
 ccflags-y += -DBUILD_STAMP="\"`date +'%Y-%m-%d %H:%M:%S'`\""
 
@@ -9,10 +12,10 @@ obj-m := max20089.o tier4-fpga.o tier4-gw5300.o tier4-imx490.o tier4-imx728.o ti
 all: modules
 
 modules:
-	$(MAKE) -C $(KDIR) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) M=$(PWD) modules
+	$(MAKE) -C $(KDIR) ARCH=$(ARCH) $(EXTRA_MAKE_FLAGS) M=$(PWD) modules
 
 clean:
-	$(MAKE) -C $(KDIR) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) M=$(PWD) clean
+	$(MAKE) -C $(KDIR) ARCH=$(ARCH) $(EXTRA_MAKE_FLAGS) M=$(PWD) clean
 
 load: modules unload
 	sudo insmod max20089.ko
