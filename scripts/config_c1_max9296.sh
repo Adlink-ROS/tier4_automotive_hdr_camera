@@ -66,7 +66,7 @@ sleep 0.1
 # Enable DES Link A to configure SER-A
 i2ctransfer -f -y $I2C_SWITCH w3@$DESER_ADDR 0x00 0x10 0x01
 i2ctransfer -f -y $I2C_SWITCH w3@$DESER_ADDR 0x00 0x10 0x21 # One-shot reset and Link A only
-sleep 0.1
+sleep 0.2
 
 #######################
 # The 1st SER: MAX9295
@@ -127,7 +127,7 @@ fi
 # Enable DES Link B to configure SER-B
 i2ctransfer -f -y $I2C_SWITCH w3@$DESER_ADDR 0x00 0x10 0x02
 i2ctransfer -f -y $I2C_SWITCH w3@$DESER_ADDR 0x00 0x10 0x22 # One-shot reset and Link B only
-sleep 0.1
+sleep 0.2
 
 #######################
 # The 2nd SER: MAX9295
