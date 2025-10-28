@@ -1,5 +1,7 @@
 #!/bin/bash
 
+FSYNC_ENABLE=1
+
 I2C_SWITCH=9
 if [ $1 ]; then
     I2C_SWITCH=$1
@@ -27,6 +29,14 @@ SER_B_7B=0x60
 # SER_B_8B=0x84
 # SER_A_7B=0x40
 # SER_B_7B=0x42
+
+# new sensor (proxy) addr
+SENSOR_A_7B=0x1D
+SENSOR_B_7B=0x1E
+SENSOR_A_8B=0x3A
+SENSOR_B_8B=0x3C
+SENSOR_DEFAULT_7B=0x1A
+SENSOR_DEFAULT_8B=0x34
 
 SER_A_CONNECTED=0
 SER_B_CONNECTED=0
@@ -66,7 +76,7 @@ sleep 0.1
 # Enable DES Link A to configure SER-A
 i2ctransfer -f -y $I2C_SWITCH w3@$DESER_ADDR 0x00 0x10 0x01
 i2ctransfer -f -y $I2C_SWITCH w3@$DESER_ADDR 0x00 0x10 0x21 # One-shot reset and Link A only
-sleep 0.1
+sleep 0.2
 
 #######################
 # The 1st SER: MAX9295
@@ -113,8 +123,8 @@ fi
     i2ctransfer -f -y $I2C_SWITCH w3@$SER_A_7B 0x00 0xA3 0x31 # TX_SRC_ID=1
     i2ctransfer -f -y $I2C_SWITCH w3@$SER_A_7B 0x00 0xAB 0x31 # TX_SRC_ID=1
 
-    i2ctransfer -f -y $I2C_SWITCH w3@$SER_A_7B 0x00 0x44 0x3A # alias sensor address on host (0x1d)
-    i2ctransfer -f -y $I2C_SWITCH w3@$SER_A_7B 0x00 0x45 0x34 # default sensor address (0x1a)
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_A_7B 0x00 0x44 $SENSOR_A_8B # alias sensor address on host (0x1d)
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_A_7B 0x00 0x45 $SENSOR_DEFAULT_8B # default sensor address (0x1a)
 
     # GPIO0 for SER-A
     i2ctransfer -f -y $I2C_SWITCH w3@$SER_A_7B 0x02 0xBE 0x90 # SER GPIO output=1
@@ -127,7 +137,7 @@ fi
 # Enable DES Link B to configure SER-B
 i2ctransfer -f -y $I2C_SWITCH w3@$DESER_ADDR 0x00 0x10 0x02
 i2ctransfer -f -y $I2C_SWITCH w3@$DESER_ADDR 0x00 0x10 0x22 # One-shot reset and Link B only
-sleep 0.1
+sleep 0.2
 
 #######################
 # The 2nd SER: MAX9295
@@ -167,8 +177,8 @@ fi
     i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x00 0xAB 0x32 # TX_SRC_ID=2
     i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x00 0x8B 0x32 # TX_SRC_ID=2
 
-    i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x00 0x44 0xB8 # alias sensor address on host (0x5c)
-    i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x00 0x45 0x20 # default sensor address (0x10)
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x00 0x44 $SENSOR_B_8B # alias sensor address on host (0x1e)
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x00 0x45 $SENSOR_DEFAULT_8B # default sensor address (0x10)
 
     # GPIO0 for SER-B
     i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x02 0xBE 0x90 # SER GPIO output=1
@@ -461,11 +471,42 @@ sleep 0.1
 # i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x02 0xD8 0x06 # GPIO_RX_ID=6
 # sleep 0.1
 
+ 
+# max9296 MFP0 for fsync
+if [[ $FSYNC_ENABLE -eq 1 ]]; then
+    echo "Enable MAX9296 MFP0 for FSYNC signals"
 
-for SENSOR in 0x1D 0x1E; do
-# tier4_isx021_set_response_mode
-    i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0x8A 0x55 0x06 2>/dev/null
+    i2ctransfer -f -y $I2C_SWITCH w3@$DESER_ADDR 0x02 0xB0 0x03 # GPIO0 0: GPIO_TX_EN; GPIO_OUT_DISABLE; PULLUP 1M ohm; 
+    i2ctransfer -f -y $I2C_SWITCH w3@$DESER_ADDR 0x02 0xB1 0x01 # GPIO0 0: GPIO_TX_ID=0x01; Push-pull down;
     sleep 0.1
+fi
+
+# max9295 MFP3 for fsync
+if [[ $FSYNC_ENABLE -eq 1 ]]; then
+    echo "Enable MAX9295 MFP3 for FSYNC signals"
+    
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_A_7B 0x02 0xC7 0x05
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x02 0xC7 0x05
+
+    # one-shot reset
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_A_7B 0x00 0x10 0x21
+    sleep 0.3
+
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x00 0x10 0x21
+    sleep 0.3
+        
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_A_7B 0x02 0xC7 0x04 # GPIO_RX_EN; GPIO_OUT_ENABLE; PULLUP 1M ohm;
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_A_7B 0x02 0xC9 0x01 # GPIO_RX_ID=0x01
+    sleep 0.1
+    
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x02 0xC7 0x04 # GPIO_RX_EN; GPIO_OUT_ENABLE; PULLUP 1M ohm;
+    i2ctransfer -f -y $I2C_SWITCH w3@$SER_B_7B 0x02 0xC9 0x01 # GPIO_RX_ID=0x01
+    sleep 0.1
+fi
+
+# setup stream
+for SENSOR in $SENSOR_A_7B $SENSOR_B_7B; do
+# tier4_isx021_set_response_mode
     i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0x8A 0x55 0x06 2>/dev/null
     sleep 0.1
     i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0xBE 0xF0 0x53 2>/dev/null
@@ -477,7 +518,6 @@ for SENSOR in 0x1D 0x1E; do
     i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0x8A 0x55 0x06 2>/dev/null
     sleep 0.1
     
-# start stream
     # tier4_isx021_set_auto_exposure
     i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0xAB 0xC0 0x00 2>/dev/null
     i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0xAC 0x4C 0x03 2>/dev/null
@@ -490,7 +530,39 @@ for SENSOR in 0x1D 0x1E; do
     i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0xAC 0x48 0xE8 2>/dev/null
     i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0xAC 0x49 0x80 2>/dev/null
     sleep 0.1
-    
+
+   # enable fsync mode
+    if [[ $FSYNC_ENABLE -eq 1 ]]; then
+        echo "Enable ISX021 for external trigger"
+        # tier4_isx021_write_mode_set_f_lock_register
+        i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0x8A 0x55 0x06 2>/dev/null
+        sleep 0.02
+        i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0xBE 0xF0 0x53 2>/dev/null
+        sleep 0.02
+        i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0x8A 0x55 0x02 2>/dev/null
+        sleep 0.05
+        
+        # tier4_isx021_transit_to_startup_state
+        i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0x8A 0x01 0x00 2>/dev/null
+        sleep 0.05
+        
+        # set FSYNC_FUNCSEL to 0 for FSYNC triggered mode
+        i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0x8A 0xFE 0x00 2>/dev/null
+        sleep 0.05
+        
+        # set FSYNC_DRVABTY to 3 for FSYNC triggered mode
+        i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0x8A 0xFF 0xFF 2>/dev/null
+        sleep 0.05
+        
+        # set SG_MODE_CTL to 0 for transition to FSYNC mode
+        i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0x8A 0xF0 0x02 2>/dev/null
+        sleep 0.05
+        
+        # set SG_MODE_APL to 0 for transition to FSYNC mode
+        i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0xBF 0x14 0x02 2>/dev/null
+        sleep 0.05
+    fi
+
     # tier4_isx021_write_mode_set_f_lock_register
     i2ctransfer -f -y $I2C_SWITCH w3@$SENSOR 0x8A 0x55 0x06 2>/dev/null
     sleep 0.1
@@ -553,7 +625,7 @@ for SENSOR in 0x1D 0x1E; do
         sleep 0.1
     
 done
-        
+
 # end
 
 sleep 0.1
