@@ -2964,7 +2964,7 @@ static int tier4_isx021_probe(struct i2c_client *client,
 	err = kernel_read_file_from_path(
 		path, 0, &firmware_buffer, INT_MAX, NULL,
 		READING_POLICY); // err is errono and number of bytes actually read
-	if (!err) {
+	if (err < 0) {
 		dev_err(dev, "Loading %s failed with error %d\n", path, err);
 #ifdef USE_FIRMWARE
 		goto errret;
